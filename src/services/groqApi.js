@@ -1,7 +1,9 @@
 const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY
 
-if (!GROQ_API_KEY) {
-  throw new Error('VITE_GROQ_API_KEY 環境變數未設置，請在 .env 檔案中設置或透過 Vercel 環境變數設置')
+function checkApiKey() {
+  if (!GROQ_API_KEY) {
+    throw new Error('VITE_GROQ_API_KEY 環境變數未設置，請在 .env 檔案中設置或透過 Vercel 環境變數設置')
+  }
 }
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions'
 
@@ -181,6 +183,7 @@ function calculateParams(messages) {
 }
 
 export async function sendMessageStream(messages, model, onChunk, abortSignal) {
+  checkApiKey()
   try {
     const userMessages = messages.filter(msg => msg.role === 'user')
     const lastUserMessage = userMessages[userMessages.length - 1]
@@ -252,6 +255,7 @@ export async function sendMessageStream(messages, model, onChunk, abortSignal) {
 }
 
 export async function sendMessage(messages, model = DEFAULT_MODEL) {
+  checkApiKey()
   try {
     const userMessages = messages.filter(msg => msg.role === 'user')
     const lastUserMessage = userMessages[userMessages.length - 1]
