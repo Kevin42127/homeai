@@ -54,24 +54,140 @@ function detectQuestionType(userMessage, conversationHistory) {
   return 'general'
 }
 
+function analyzeStudentResponse(studentMessage) {
+  if (!studentMessage || !studentMessage.content) {
+    return { complexity: 0, confidence: 0, hasQuestions: false, understanding: 'unknown' }
+  }
+  
+  const content = studentMessage.content
+  const length = content.length
+  
+  // 檢測理解信號
+  const understandingSignals = {
+    positive: /懂了|明白了|理解了|清楚了|知道了|了解|我懂|我明白|原來如此|對對對|沒錯|是的|對的/i,
+    negative: /不懂|不明白|不理解|不清楚|不知道|還是不懂|還是不明白|不太懂|不太明白|有點難|不太清楚|困惑|疑惑/i,
+    questioning: /為什麼|為何|怎麼|如何|什麼|為什麼會|怎麼會|如何做|什麼是|為什麼是/i
+  }
+  
+  // 檢測專業術語和複雜概念
+  const advancedTerms = /原理|機制|理論|系統|架構|演算法|資料結構|抽象|封裝|繼承|多型|設計模式|框架|架構模式|最佳實踐|優化|效能|擴展性|可維護性/i
+  const intermediateTerms = /功能|方法|步驟|流程|概念|定義|類型|變數|函數|類別|物件|介面/i
+  const basicTerms = /這個|那個|什麼|怎麼|如何|為什麼|可以|不能|會|不會|是|不是/i
+  
+  // 計算複雜度分數
+  let complexity = 0
+  if (length > 300) complexity += 3
+  else if (length > 150) complexity += 2
+  else if (length > 50) complexity += 1
+  
+  if (advancedTerms.test(content)) complexity += 3
+  else if (intermediateTerms.test(content)) complexity += 2
+  else if (basicTerms.test(content)) complexity += 1
+  
+  // 檢測追問
+  const hasQuestions = understandingSignals.questioning.test(content)
+  
+  // 判斷理解程度
+  let understanding = 'unknown'
+  if (understandingSignals.positive.test(content)) {
+    understanding = 'positive'
+  } else if (understandingSignals.negative.test(content)) {
+    understanding = 'negative'
+  }
+  
+  // 計算信心度（基於回答的完整性和準確性指標）
+  let confidence = 0
+  if (length > 100) confidence += 2
+  else if (length > 30) confidence += 1
+  
+  if (advancedTerms.test(content)) confidence += 2
+  else if (intermediateTerms.test(content)) confidence += 1
+  
+  if (understanding === 'positive') confidence += 1
+  if (hasQuestions && understanding !== 'negative') confidence += 1
+  
+  return { complexity, confidence, hasQuestions, understanding }
+}
+
 function getContextLevel(conversationHistory) {
   const messageCount = conversationHistory.length
-  const recentMessages = conversationHistory.slice(-6)
-  const hasComplexTerms = recentMessages.some(msg => 
-    msg.content && (msg.content.length > 200 || 
-    /原理|機制|理論|系統|架構/i.test(msg.content))
-  )
   
-  if (messageCount > 10 && hasComplexTerms) {
+  if (messageCount === 0) {
+    return 'beginner'
+  }
+  
+  // 分析最近的學生回答（最近 6 條訊息中的用戶訊息）
+  const recentMessages = conversationHistory.slice(-6)
+  const userMessages = recentMessages.filter(msg => msg.role === 'user')
+  
+  if (userMessages.length === 0) {
+    // 如果沒有用戶訊息，根據訊息數量判斷
+    if (messageCount > 10) return 'intermediate'
+    return 'beginner'
+  }
+  
+  // 分析所有用戶回答
+  const analyses = userMessages.map(msg => analyzeStudentResponse(msg))
+  
+  // 計算平均複雜度和信心度
+  const avgComplexity = analyses.reduce((sum, a) => sum + a.complexity, 0) / analyses.length
+  const avgConfidence = analyses.reduce((sum, a) => sum + a.confidence, 0) / analyses.length
+  
+  // 檢測是否有負面理解信號
+  const hasNegativeSignals = analyses.some(a => a.understanding === 'negative')
+  const hasPositiveSignals = analyses.some(a => a.understanding === 'positive')
+  
+  // 檢測是否有追問（表示積極思考）
+  const hasActiveQuestions = analyses.some(a => a.hasQuestions)
+  
+  // 檢測複雜術語
+  const recentContent = recentMessages.map(msg => msg.content || '').join(' ')
+  const hasAdvancedTerms = /原理|機制|理論|系統|架構|演算法|資料結構|抽象|封裝|繼承|多型|設計模式|框架|架構模式|最佳實踐|優化|效能|擴展性|可維護性/i.test(recentContent)
+  const hasIntermediateTerms = /功能|方法|步驟|流程|概念|定義|類型|變數|函數|類別|物件|介面/i.test(recentContent)
+  
+  // 判斷邏輯（優先級從高到低）
+  
+  // 1. 如果學生明確表示不理解，且複雜度低，判定為初學者
+  if (hasNegativeSignals && avgComplexity < 2 && !hasActiveQuestions) {
+    return 'beginner'
+  }
+  
+  // 2. 如果有高級術語且學生回答複雜度高、信心度高，判定為進階
+  if (hasAdvancedTerms && avgComplexity >= 4 && avgConfidence >= 3) {
     return 'advanced'
-  } else if (messageCount > 5) {
+  }
+  
+  // 3. 如果有中級術語且學生回答有一定複雜度和信心度，判定為中級
+  if (hasIntermediateTerms && avgComplexity >= 2 && avgConfidence >= 2) {
     return 'intermediate'
   }
+  
+  // 4. 如果對話較長且學生積極提問或表示理解，判定為中級
+  if (messageCount > 10 && (hasActiveQuestions || hasPositiveSignals) && avgComplexity >= 1.5) {
+    return 'intermediate'
+  }
+  
+  // 5. 如果對話中等長度且學生回答有一定複雜度，判定為中級
+  if (messageCount > 5 && avgComplexity >= 2 && avgConfidence >= 1.5) {
+    return 'intermediate'
+  }
+  
+  // 6. 如果對話很長且有高級術語，即使複雜度不高也可能是進階
+  if (messageCount > 15 && hasAdvancedTerms && avgComplexity >= 2.5) {
+    return 'advanced'
+  }
+  
+  // 7. 如果學生積極提問且回答有一定複雜度，可能是中級
+  if (hasActiveQuestions && avgComplexity >= 2 && messageCount > 3) {
+    return 'intermediate'
+  }
+  
+  // 8. 預設為初學者
   return 'beginner'
 }
 
 function getSystemPrompt(questionType, contextLevel, conversationHistory) {
-  const basePrompt = '你是一位親切、專業的 AI 老師，必須且只能使用繁體中文與學生對話。嚴格禁止使用簡體中文、簡體字或任何簡體字體。所有回應必須使用繁體中文（正體中文），包括所有文字、標點符號和用詞。'
+  const basePrompt = '你是一位親切、專業的 AI 老師，必須且只能使用繁體中文與學生對話。嚴格禁止使用簡體中文、簡體字、英文或任何非繁體中文的語言。所有回應必須完全使用繁體中文（正體中文），包括所有文字、標點符號、用詞和專業術語。如果必須提到英文專有名詞，請用繁體中文說明，或使用繁體中文翻譯。絕對禁止在回應中混用英文單詞、英文句子或英文縮寫。'
   
   const personalityTraits = [
     '用語親切自然，就像在與朋友聊天，但保持專業',
@@ -131,6 +247,8 @@ function getSystemPrompt(questionType, contextLevel, conversationHistory) {
   
   const encouragementGuidance = '\n【鼓勵與延伸】\n- 在引導過程中適時給予鼓勵和肯定\n- 肯定學生的思考過程，即使答案不完全正確\n- 提供相關的延伸學習主題或資源建議\n- 提出思考問題，促進深入學習\n- 如果適合，可以建議下一步學習方向'
   
+  const errorDetectionGuidance = '\n【錯誤檢測與糾正引導】\n- 仔細聆聽學生的回答，檢測其中可能存在的錯誤概念、誤解、邏輯問題或事實錯誤\n- 絕對不要直接指出錯誤，而是用引導式提問幫助學生自己發現問題\n- 如果學生回答有誤，先肯定學生思考的過程，例如：「你的思考方向很好」、「你提到的這個點很有意思」、「讓我們再深入思考一下」\n- 用提問引導學生思考：「如果這樣的話，會發生什麼？」、「你覺得這樣合理嗎？」、「有沒有其他可能？」、「這樣做會有什麼後果？」、「讓我們從另一個角度看看」\n- 引導學生從不同角度思考問題，幫助他們發現自己的錯誤，例如：「如果從使用者的角度來看呢？」、「如果換個情境會怎樣？」\n- 當學生發現錯誤後，給予肯定和鼓勵，例如：「很好，你發現了關鍵點」、「對，這就是重點」、「你的觀察很敏銳」，然後引導正確的理解\n- 如果學生多次回答錯誤，可以逐步提供更多提示，但始終保持引導而非直接給答案，例如：「讓我們想想，如果...會怎樣？」、「有沒有注意到...？」\n- 記住：讓學生自己發現錯誤比直接告訴他們更有教育意義，這能幫助他們建立批判性思維\n- 即使學生的答案完全錯誤，也要肯定他們的嘗試和思考過程，然後用提問引導正確方向\n- 檢測常見錯誤類型：概念混淆、邏輯錯誤、事實錯誤、過度簡化、以偏概全等，針對不同錯誤類型使用不同的引導方式'
+  
   return `${basePrompt}
 
 【你的特點】
@@ -139,6 +257,7 @@ ${personalityTraits.map(trait => `• ${trait}`).join('\n')}
 ${typeSpecificGuidance}
 ${levelGuidance}
 ${encouragementGuidance}
+${errorDetectionGuidance}
 
 【回應格式要求】
 ${formatRules.map(rule => `• ${rule}`).join('\n')}
@@ -152,11 +271,18 @@ ${formatRules.map(rule => `• ${rule}`).join('\n')}
 • 適時提供延伸學習建議，但不要過於推銷
 • 如果問題涉及多個層面，可以分層次引導
 • 記住：好的教學是引導學生自己發現答案，而不是直接告訴答案
+• 仔細分析學生的回答，檢測可能的錯誤概念，但要用引導式提問幫助學生自己發現
+• 如果學生回答有誤，先肯定思考過程，再用提問引導思考，不要直接指出錯誤
+• 根據學生的回答品質和複雜度，動態調整你的引導方式和解釋深度
 • 嚴格禁止使用任何項目符號或特殊符號（包含 *、•、-、#、[]、() 等）
 • 嚴格禁止使用任何 Markdown 語法符號
-• 語言要求：必須且只能使用繁體中文（正體中文），絕對禁止使用簡體中文、簡體字或任何簡體字體
+• 語言要求：必須且只能使用繁體中文（正體中文），絕對禁止使用簡體中文、簡體字、英文或任何非繁體中文的語言
 • 所有文字、標點符號、用詞都必須是繁體中文，包括：的（不是"的"）、是（不是"是"）、這（不是"这"）、個（不是"个"）等
-• 如果看到簡體字，必須立即轉換為對應的繁體字`
+• 如果看到簡體字，必須立即轉換為對應的繁體字
+• 嚴格禁止在回應中使用任何英文單詞、英文句子、英文縮寫或英文專有名詞
+• 所有專業術語、技術名詞都必須使用繁體中文翻譯
+• 如果必須提到英文專有名詞（如程式語言名稱、技術術語），請用繁體中文說明，例如：「JavaScript」應說明為「一種程式設計語言」或使用「爪哇腳本」等繁體中文翻譯
+• 回應中不得出現任何英文字母、英文單詞或英文句子，所有內容都必須是繁體中文`
 }
 
 function calculateParams(messages) {
