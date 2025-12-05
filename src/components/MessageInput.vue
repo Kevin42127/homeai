@@ -179,6 +179,8 @@ function handleCancel() {
   border-radius: 12px;
   text-align: left !important;
   direction: ltr;
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 .message-input:focus {
@@ -194,6 +196,20 @@ function handleCancel() {
 
 .message-input::placeholder {
   color: #94A3B8;
+  text-align: left;
+}
+
+/* iOS Safari 特定樣式 */
+@supports (-webkit-touch-callout: none) {
+  .message-input {
+    -webkit-appearance: none;
+    -webkit-border-radius: 12px;
+    font-size: 16px !important;
+  }
+  
+  .message-input:focus {
+    -webkit-appearance: none;
+  }
 }
 
 .voice-button {
@@ -360,6 +376,14 @@ function handleCancel() {
   .cancel-button .material-symbols-outlined {
     font-size: 20px;
   }
+  
+  /* iOS Safari 移動端優化 */
+  @supports (-webkit-touch-callout: none) {
+    .message-input {
+      -webkit-appearance: none;
+      font-size: 16px !important;
+    }
+  }
 }
 
 @media (max-width: 480px) {
@@ -378,7 +402,10 @@ function handleCancel() {
     min-height: 44px;
     line-height: 1.5;
     min-width: 0;
-    text-align: left;
+    text-align: left !important;
+    direction: ltr;
+    -webkit-appearance: none;
+    appearance: none;
   }
 
   .voice-button {
@@ -405,6 +432,14 @@ function handleCancel() {
   .send-button .material-symbols-outlined,
   .cancel-button .material-symbols-outlined {
     font-size: 20px;
+  }
+  
+  /* iOS Safari 小螢幕優化 */
+  @supports (-webkit-touch-callout: none) {
+    .message-input {
+      -webkit-appearance: none;
+      font-size: 16px !important;
+    }
   }
 }
 </style>
