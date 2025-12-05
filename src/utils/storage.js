@@ -2,6 +2,8 @@ const STORAGE_KEY = 'ai-teacher-chat-history'
 const MODEL_STORAGE_KEY = 'ai-teacher-selected-model'
 const TOUR_COMPLETED_KEY = 'ai-teacher-tour-completed'
 const FONT_SIZE_KEY = 'ai-teacher-font-size'
+const WELCOME_SHOWN_KEY = 'ai-teacher-welcome-shown'
+const INSTALL_PROMPT_DISMISSED_KEY = 'ai-teacher-install-prompt-dismissed'
 
 export function saveChatHistory(messages) {
   try {
@@ -107,6 +109,42 @@ export function loadFontSize() {
   } catch (error) {
     console.error('載入字體大小失敗:', error)
     return 'medium'
+  }
+}
+
+export function checkWelcomeShown() {
+  try {
+    const shown = localStorage.getItem(WELCOME_SHOWN_KEY)
+    return !!shown
+  } catch (error) {
+    console.error('檢查歡迎視窗狀態失敗:', error)
+    return false
+  }
+}
+
+export function markWelcomeShown() {
+  try {
+    localStorage.setItem(WELCOME_SHOWN_KEY, 'true')
+  } catch (error) {
+    console.error('標記歡迎視窗已顯示失敗:', error)
+  }
+}
+
+export function checkInstallPromptDismissed() {
+  try {
+    const dismissed = localStorage.getItem(INSTALL_PROMPT_DISMISSED_KEY)
+    return !!dismissed
+  } catch (error) {
+    console.error('檢查安裝提示狀態失敗:', error)
+    return false
+  }
+}
+
+export function markInstallPromptDismissed() {
+  try {
+    localStorage.setItem(INSTALL_PROMPT_DISMISSED_KEY, 'true')
+  } catch (error) {
+    console.error('標記安裝提示已關閉失敗:', error)
   }
 }
 

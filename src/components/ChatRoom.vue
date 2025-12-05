@@ -7,6 +7,9 @@
           AI老師
         </h1>
         <div class="header-actions">
+          <button @click="handleShowWelcome" class="action-button announcement-button" title="公告">
+            <span class="material-symbols-outlined">campaign</span>
+          </button>
           <button @click="handleShowSettings" class="action-button settings-button" title="設定">
             <span class="material-symbols-outlined">settings</span>
           </button>
@@ -36,6 +39,8 @@
       @cancel="handleCancelDialog"
     />
     <SettingsDialog :show="showSettings" :fontSize="currentFontSize" @close="handleSettingsClose" @font-size-change="handleFontSizeChange" />
+    <WelcomeDialog :show="showWelcome" @close="handleWelcomeClose" />
+    <InstallPrompt :show="showInstallPrompt" :deferredPrompt="deferredPrompt" @close="handleInstallPromptClose" @install="handleInstallComplete" />
   </div>
 </template>
 
@@ -46,13 +51,19 @@ import MessageInput from './MessageInput.vue'
 import Toast from './Toast.vue'
 import ConfirmDialog from './ConfirmDialog.vue'
 import SettingsDialog from './SettingsDialog.vue'
+import WelcomeDialog from './WelcomeDialog.vue'
+import InstallPrompt from './InstallPrompt.vue'
 import { sendMessageStream, getDefaultModel } from '../services/groqApi.js'
 import {
   saveChatHistory,
   loadChatHistory,
   clearChatHistory,
   saveFontSize,
-  loadFontSize
+  loadFontSize,
+  checkWelcomeShown,
+  markWelcomeShown,
+  checkInstallPromptDismissed,
+  markInstallPromptDismissed
 } from '../utils/storage.js'
 
 const props = defineProps({
@@ -72,6 +83,10 @@ const notification = ref({ show: false, message: '', type: 'info' })
 const confirmDialog = ref({ show: false, title: '', message: '', callback: null })
 const abortController = ref(null)
 const showSettings = ref(false)
+const showWelcome = ref(false)
+const isFirstVisit = ref(false)
+const showInstallPrompt = ref(false)
+const deferredPrompt = ref(null)
 
 const currentFontSize = computed(() => props.fontSize || loadFontSize())
 
@@ -227,6 +242,41 @@ function handleFontSizeChange(size) {
   emit('font-size-change', size)
 }
 
+function handleShowWelcome() {
+  showWelcome.value = true
+}
+
+function handleWelcomeClose() {
+  showWelcome.value = false
+  if (isFirstVisit.value) {
+    markWelcomeShown()
+    isFirstVisit.value = false
+  }
+  checkAndShowInstallPrompt()
+}
+
+function checkAndShowInstallPrompt() {
+  if (deferredPrompt.value && !showInstallPrompt.value && !checkInstallPromptDismissed()) {
+    setTimeout(() => {
+      if (deferredPrompt.value && !showWelcome.value && !checkInstallPromptDismissed()) {
+        showInstallPrompt.value = true
+      }
+    }, 1000)
+  }
+}
+
+function handleInstallPromptClose() {
+  showInstallPrompt.value = false
+  markInstallPromptDismissed()
+  deferredPrompt.value = null
+}
+
+function handleInstallComplete() {
+  showInstallPrompt.value = false
+  deferredPrompt.value = null
+  showNotification('安裝成功！', 'success')
+}
+
 onMounted(() => {
   const savedHistory = loadChatHistory()
   if (savedHistory && savedHistory.length > 0) {
@@ -235,6 +285,44 @@ onMounted(() => {
       isStreaming: false
     }))
   }
+  
+  if (!checkWelcomeShown()) {
+    showWelcome.value = true
+    isFirstVisit.value = true
+  }
+
+  if (window.matchMedia('(display-mode: standalone)').matches) {
+    console.log('應用已安裝，不顯示安裝提示')
+  } else {
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault()
+      deferredPrompt.value = e
+      console.log('PWA 安裝提示可用')
+      
+      if (showWelcome.value) {
+        console.log('等待歡迎視窗關閉後顯示安裝提示')
+      } else if (checkInstallPromptDismissed()) {
+        console.log('用戶已關閉過安裝提示')
+      } else {
+        setTimeout(() => {
+          if (deferredPrompt.value && !showWelcome.value && !checkInstallPromptDismissed()) {
+            console.log('顯示安裝提示')
+            showInstallPrompt.value = true
+          }
+        }, 3000)
+      }
+    })
+
+    console.log('檢查 PWA 安裝條件...')
+    console.log('Service Worker 支援:', 'serviceWorker' in navigator)
+    console.log('Manifest 連結:', document.querySelector('link[rel="manifest"]')?.href)
+  }
+
+  window.addEventListener('appinstalled', () => {
+    deferredPrompt.value = null
+    showInstallPrompt.value = false
+    showNotification('已成功安裝 AI 老師！', 'success')
+  })
 })
 </script>
 
@@ -311,26 +399,6 @@ onMounted(() => {
   justify-content: center;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   border-radius: 8px;
-  position: relative;
-  overflow: hidden;
-}
-
-.action-button::before {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 0;
-  height: 0;
-  border-radius: 50%;
-  background: #A7F3D0;
-  transform: translate(-50%, -50%);
-  transition: width 0.6s, height 0.6s;
-}
-
-.action-button:active::before {
-  width: 200px;
-  height: 200px;
 }
 
 .action-button:hover {
@@ -359,10 +427,6 @@ onMounted(() => {
   color: #D97706;
 }
 
-.action-button.settings-button::before {
-  background: #FDE68A;
-}
-
 .action-button.settings-button:hover {
   background: #F59E0B;
   border-color: #D97706;
@@ -371,6 +435,23 @@ onMounted(() => {
 }
 
 .action-button.settings-button:hover .material-symbols-outlined {
+  color: #FFFFFF;
+}
+
+.action-button.announcement-button {
+  background: #DBEAFE;
+  border: 1px solid #93C5FD;
+  color: #1E40AF;
+}
+
+.action-button.announcement-button:hover {
+  background: #3B82F6;
+  border-color: #2563EB;
+  color: #FFFFFF;
+  box-shadow: 0 6px 16px rgba(59, 130, 246, 0.25);
+}
+
+.action-button.announcement-button:hover .material-symbols-outlined {
   color: #FFFFFF;
 }
 
