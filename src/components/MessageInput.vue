@@ -168,6 +168,7 @@ function handleCancel() {
 
 .message-input {
   flex: 1;
+  min-width: 0;
   padding: 14px 18px;
   background: #F8FAFC;
   border: 1px solid rgba(139, 92, 246, 0.3);
@@ -176,6 +177,8 @@ function handleCancel() {
   font-family: inherit;
   transition: all 0.3s ease;
   border-radius: 12px;
+  text-align: left !important;
+  direction: ltr;
 }
 
 .message-input:focus {
@@ -318,7 +321,8 @@ function handleCancel() {
   }
 
   .input-wrapper {
-    gap: 10px;
+    gap: 8px;
+    padding: 0 16px;
   }
 
   .message-input {
@@ -326,67 +330,81 @@ function handleCancel() {
     font-size: 16px;
     min-height: 44px;
     line-height: 1.5;
+    min-width: 0;
+    text-align: left !important;
+    direction: ltr;
   }
 
   .voice-button {
-    padding: 12px 18px;
+    padding: 12px;
     min-width: 44px;
+    max-width: 44px;
     min-height: 44px;
+    flex-shrink: 0;
   }
 
   .voice-button .material-symbols-outlined {
-    font-size: 22px;
+    font-size: 20px;
   }
 
   .send-button,
   .cancel-button {
-    padding: 12px 20px;
-    min-width: 48px;
-    min-height: 48px;
+    padding: 12px;
+    min-width: 44px;
+    max-width: 44px;
+    min-height: 44px;
+    flex-shrink: 0;
   }
 
   .send-button .material-symbols-outlined,
   .cancel-button .material-symbols-outlined {
-    font-size: 22px;
+    font-size: 20px;
   }
 }
 
 @media (max-width: 480px) {
   .message-input-container {
-    padding: 12px 16px;
+    padding: 10px 12px;
   }
 
   .input-wrapper {
-    gap: 10px;
+    gap: 8px;
+    padding: 0 12px;
   }
 
   .message-input {
-    padding: 12px 16px;
+    padding: 12px 14px;
     font-size: 16px;
     min-height: 44px;
     line-height: 1.5;
+    min-width: 0;
+    text-align: left;
   }
 
   .voice-button {
-    padding: 12px 16px;
+    padding: 10px;
     min-width: 44px;
+    max-width: 44px;
     min-height: 44px;
+    flex-shrink: 0;
   }
 
   .voice-button .material-symbols-outlined {
-    font-size: 22px;
+    font-size: 20px;
   }
 
   .send-button,
   .cancel-button {
-    padding: 12px 18px;
+    padding: 10px;
     min-width: 44px;
+    max-width: 44px;
     min-height: 44px;
+    flex-shrink: 0;
   }
 
   .send-button .material-symbols-outlined,
   .cancel-button .material-symbols-outlined {
-    font-size: 22px;
+    font-size: 20px;
   }
 }
 </style>
