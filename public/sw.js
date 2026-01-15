@@ -1,4 +1,5 @@
-const CACHE_NAME = 'ai-teacher-v' + Date.now()
+const CACHE_VERSION = 'v' + Date.now()
+const CACHE_NAME = 'ai-teacher-' + CACHE_VERSION
 
 self.addEventListener('install', (event) => {
   self.skipWaiting()
@@ -9,7 +10,9 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
-          return caches.delete(cacheName)
+          if (cacheName !== CACHE_NAME) {
+            return caches.delete(cacheName)
+          }
         })
       )
     }).then(() => {
@@ -18,16 +21,23 @@ self.addEventListener('activate', (event) => {
   )
 })
 
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting()
+  }
+})
+
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') {
     return
   }
 
   const url = new URL(event.request.url)
+  const requestUrl = event.request.url
   
   if (url.pathname === '/' || url.pathname === '/index.html' || url.pathname.endsWith('.html')) {
     event.respondWith(
-      fetch(event.request)
+      fetch(requestUrl, { cache: 'no-store' })
         .then((response) => {
           return response
         })
@@ -38,9 +48,9 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  if (url.pathname.startsWith('/assets/') || url.pathname.match(/\.(js|css|png|jpg|jpeg|gif|svg|woff|woff2|ttf|eot)$/)) {
+  if (url.pathname.startsWith('/assets/') || url.pathname.match(/\.(js|css)$/)) {
     event.respondWith(
-      fetch(event.request)
+      fetch(requestUrl, { cache: 'no-cache' })
         .then((response) => {
           if (response && response.status === 200) {
             const responseToCache = response.clone()
