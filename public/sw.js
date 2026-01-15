@@ -1,52 +1,7 @@
-const CACHE_NAME = 'ai-teacher-v1'
+const CACHE_NAME = 'ai-teacher-v' + Date.now()
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then((cache) => {
-        return cache.addAll([
-          '/',
-          '/index.html'
-        ]).catch((error) => {
-          console.log('快取失敗:', error)
-        })
-      })
-  )
   self.skipWaiting()
-})
-
-self.addEventListener('fetch', (event) => {
-  if (event.request.method !== 'GET') {
-    return
-  }
-  
-  event.respondWith(
-    caches.match(event.request)
-      .then((response) => {
-        if (response) {
-          return response
-        }
-        return fetch(event.request).then(
-          (response) => {
-            if (!response || response.status !== 200) {
-              return response
-            }
-            if (event.request.url.startsWith('http') && !event.request.url.includes('chrome-extension')) {
-              const responseToCache = response.clone()
-              caches.open(CACHE_NAME)
-                .then((cache) => {
-                  cache.put(event.request, responseToCache)
-                })
-            }
-            return response
-          }
-        ).catch(() => {
-          if (event.request.destination === 'document') {
-            return caches.match('/index.html')
-          }
-        })
-      )
-  )
 })
 
 self.addEventListener('activate', (event) => {
@@ -54,13 +9,54 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
-          if (cacheName !== CACHE_NAME) {
-            return caches.delete(cacheName)
-          }
+          return caches.delete(cacheName)
         })
       )
+    }).then(() => {
+      return self.clients.claim()
     })
   )
-  return self.clients.claim()
 })
 
+self.addEventListener('fetch', (event) => {
+  if (event.request.method !== 'GET') {
+    return
+  }
+
+  const url = new URL(event.request.url)
+  
+  if (url.pathname === '/' || url.pathname === '/index.html' || url.pathname.endsWith('.html')) {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          return response
+        })
+        .catch(() => {
+          return caches.match('/index.html')
+        })
+    )
+    return
+  }
+
+  if (url.pathname.startsWith('/assets/') || url.pathname.match(/\.(js|css|png|jpg|jpeg|gif|svg|woff|woff2|ttf|eot)$/)) {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          if (response && response.status === 200) {
+            const responseToCache = response.clone()
+            caches.open(CACHE_NAME)
+              .then((cache) => {
+                cache.put(event.request, responseToCache)
+              })
+          }
+          return response
+        })
+        .catch(() => {
+          return caches.match(event.request)
+        })
+    )
+    return
+  }
+
+  event.respondWith(fetch(event.request))
+})

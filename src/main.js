@@ -9,18 +9,20 @@ if ('serviceWorker' in navigator) {
     const swUrl = '/sw.js'
     navigator.serviceWorker.register(swUrl, { scope: '/' })
       .then((registration) => {
-        console.log('Service Worker 註冊成功:', registration.scope)
-        
         registration.addEventListener('updatefound', () => {
           const newWorker = registration.installing
           if (newWorker) {
             newWorker.addEventListener('statechange', () => {
-              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                console.log('新的 Service Worker 已安裝')
+              if (newWorker.state === 'activated') {
+                window.location.reload()
               }
             })
           }
         })
+
+        setInterval(() => {
+          registration.update()
+        }, 60000)
       })
       .catch((error) => {
         console.error('Service Worker 註冊失敗:', error)
